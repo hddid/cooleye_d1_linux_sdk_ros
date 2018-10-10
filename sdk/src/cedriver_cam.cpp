@@ -123,6 +123,41 @@ static int ce_cam_i2c_write(int cam_num, unsigned char reg,int value)
 }
 
 
+static int ce_vscel_i2c_write(int cam_num, unsigned char reg,int value)
+{
+    unsigned char buf[1];
+    int r = libusb_control_transfer(ce_cam_get_cam_handle(cam_num),RT_D2H,CAM_I2C_W,(VSCEL_I2C_ADDR<<8)+reg,value,buf,1,1000);
+    if(r != 1)
+    {
+        LOG("celog: vscel%d,i:0x%02X,r:%d\r\n",cam_num,CAM_I2C_W,r);
+        return r;
+    }
+    if(buf[0] != SUCCESS)
+    {
+        LOG("celog: I2C Write failed.  vscel:%d, Addr:0x%02X, Reg:0x%02X, Write:0x%04X, I2C_return:%d\r\n",cam_num,CAM_I2C_ADDR,reg,value,buf[0]);
+        return r;
+    }
+    return r;
+}
+
+static int ce_vscel_i2c_read(int cam_num, unsigned char reg,int* value)
+{
+    unsigned char buf[3];
+    int r = libusb_control_transfer(ce_cam_get_cam_handle(cam_num),RT_D2H,CAM_I2C_R,(VSCEL_I2C_ADDR<<8)+reg,0,buf,2,1000);
+    if(r != 2)
+    {
+        LOG("celog: vscel%d,i:0x%02X,r:%d\r\n",cam_num,CAM_I2C_R,r);
+        return r;
+    }
+    if(buf[0] != SUCCESS)
+    {
+        LOG("celog: I2C Read failed. Cam:%d, Addr:0x%02X, Reg:0x%02X, I2C_return:%d\r\n",cam_num,CAM_I2C_ADDR,reg,buf[0]);
+        return r;
+    }
+    *value = buf[1];
+    return r;
+}
+
 
 static int ce_cam_set_af_mode(int camlr)
 {
@@ -346,7 +381,50 @@ static void ce_cam_set_mt9v034_EG_mode(int camlr)
 static void *ce_cam_capture(void *pUserPara)
 {
     int camlr = *(int *)pUserPara;
-    
+        
+     int test[3];
+//     
+//     if(CAMD1_LEFT == camlr)
+//     {
+
+        ce_vscel_i2c_read(camlr,0x00,test);
+        std::cout <<  std::hex << "reg 0x00= " << test[0] << std::endl;
+        
+        ce_vscel_i2c_write(camlr,0x00,test[0]&0xEF);
+        
+        ce_vscel_i2c_read(camlr,0x00,test);
+        std::cout <<  std::hex << "reg 0x00= " << test[0] << std::endl;
+
+        ce_vscel_i2c_write(camlr,0x0C,0x55);
+        ce_vscel_i2c_write(camlr,0x0D,0x55);
+        
+//         ce_vscel_i2c_write(camlr,0x0C,0xAA);
+//         ce_vscel_i2c_write(camlr,0x0D,0xAA);
+//         
+//         ce_vscel_i2c_write(camlr,0x02,0x80);
+//         ce_vscel_i2c_write(camlr,0x03,0x80);
+//         ce_vscel_i2c_write(camlr,0x04,0x80);
+//         ce_vscel_i2c_write(camlr,0x05,0x80);
+//         
+//         ce_vscel_i2c_write(camlr,0x06,0x80);
+//         ce_vscel_i2c_write(camlr,0x07,0x80);
+//         ce_vscel_i2c_write(camlr,0x08,0x80);
+//         ce_vscel_i2c_write(camlr,0x09,0x80);
+        
+        
+//     }
+//         
+//         
+//     int test[2];
+//     
+//     if(CAMD1_LEFT == camlr)
+//     {
+// 
+//         ce_cam_i2c_read(camlr,0x01,test);
+//         std::cout <<  std::hex << "camleft reg 0x00= " << test[0]+(test[1]<<8) << std::endl;
+//     
+//     }
+   
     ce_cam_set_mt9v034_config_default(camlr);
  
     ce_cam_set_mt9v034_fps(camlr);
@@ -355,6 +433,8 @@ static void *ce_cam_capture(void *pUserPara)
 
     ce_cam_ctrl_camera(camlr,SET_MCLK_48MHz);
 
+    ce_cam_i2c_write(camlr,0x6B,0x0604);
+    
     usleep(1000);
 
     ce_cam_sync_rst(camlr);
@@ -619,9 +699,31 @@ static void* ce_cam_showimg(void *)
         img_left.colRange( 0, img_left.cols).copyTo(result.colRange(0, img_left.cols));
  
         img_right.colRange( 0, img_right.cols).copyTo(result.colRange(img_left.cols, result.cols));
-        cv::imshow("result",result);
+        //cv::imshow("result",result);
         
-        cv::waitKey(1);
+        cv::Mat cimg;
+       
+        
+        
+        //cv::cvtColor(result,cimg,CV_BayerRG2BGR);
+        
+
+        cv::cvtColor(result,cimg,CV_BayerBG2RGB);
+        
+
+        cv::imshow("result",cimg);
+	/*cv::Mat cimg;
+	cv::cvtColor(result, cimg, cv::COLOR_GRAY2BGR);
+
+	cv::rectangle(cimg,cvPoint(376-5,240-5),cvPoint(376+5,240+5), CV_RGB(0, 255, 0), 1,1,0);        
+	cv::rectangle(cimg,cvPoint(752+376-5,240-5),cvPoint(752+376+5,240+5), CV_RGB(0, 255, 0), 1,1,0);        
+	
+	cv::imshow("result",cimg);
+    */
+    
+        
+    
+	cv::waitKey(1);
 
         delete img_lr_pkg->left_img;
         delete img_lr_pkg->right_img;

@@ -4,3 +4,5 @@ cp -rf ../src ../../ros/src/cooleye_d1/
 cp -rf ../config ../../ros/src/cooleye_d1/
 cp -rf ../rosfile/CMakeLists.txt ../../ros/src/cooleye_d1/
 cp -rf ../rosfile/package.xml ../../ros/src/cooleye_d1/
+cp -rf ../dso_config ../../ros/src/cooleye_d1/
+
