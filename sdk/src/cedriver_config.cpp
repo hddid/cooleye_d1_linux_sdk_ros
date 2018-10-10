@@ -150,31 +150,59 @@ static void ce_config_get_img_config()
     gc_camd1.gc_img.cf_img_buff_size = gc_camd1.gc_img.cf_img_size + 0x200;
 
     /////////HS--VS///////////////////////////////
-    if(gc_camd1.gc_cam.cf_cam_FPS < 10)
+    
+    if(ce_config_get_cf_cam_mode() & CAMD1_LEFT_ENABLE & CAMD1_RIGHT_ENABLE)
     {
-        gc_camd1.gc_cam.cf_cam_FPS = 10;
-        gc_camd1.gc_img.cf_img_HB = 0x03FF;
+              
+        if(gc_camd1.gc_cam.cf_cam_FPS < 10)
+        {
+            gc_camd1.gc_cam.cf_cam_FPS = 10;
+            gc_camd1.gc_img.cf_img_HB = 0x03FF;
+        }
+        else if(gc_camd1.gc_cam.cf_cam_FPS < 31)
+            gc_camd1.gc_img.cf_img_HB = 0x03FF;
+        else if(gc_camd1.gc_cam.cf_cam_FPS < 41)
+            gc_camd1.gc_img.cf_img_HB = 0x01FF;
+        else if(gc_camd1.gc_cam.cf_cam_FPS < 45)
+            gc_camd1.gc_img.cf_img_HB = 0x0160;
+        else
+        {
+            gc_camd1.gc_cam.cf_cam_FPS = 45;
+            gc_camd1.gc_img.cf_img_HB = 0x0160;
+        }
     }
-    else if(gc_camd1.gc_cam.cf_cam_FPS < 31)
-        gc_camd1.gc_img.cf_img_HB = 0x03FF;
-    else if(gc_camd1.gc_cam.cf_cam_FPS < 41)
-        gc_camd1.gc_img.cf_img_HB = 0x01FF;
-    else if(gc_camd1.gc_cam.cf_cam_FPS < 45)
-        gc_camd1.gc_img.cf_img_HB = 0x0160;
     else
     {
-        gc_camd1.gc_cam.cf_cam_FPS = 45;
-        gc_camd1.gc_img.cf_img_HB = 0x0160;
+         if(gc_camd1.gc_cam.cf_cam_FPS < 10)
+        {
+            gc_camd1.gc_cam.cf_cam_FPS = 10;
+            gc_camd1.gc_img.cf_img_HB = 0x03FF;
+        }
+        else if(gc_camd1.gc_cam.cf_cam_FPS < 31)
+            gc_camd1.gc_img.cf_img_HB = 0x03FF;
+        else if(gc_camd1.gc_cam.cf_cam_FPS < 41)
+            gc_camd1.gc_img.cf_img_HB = 0x01FF;
+        else if(gc_camd1.gc_cam.cf_cam_FPS < 56)
+            gc_camd1.gc_img.cf_img_HB = 0x080;
+        else
+        {
+            gc_camd1.gc_cam.cf_cam_FPS = 60;
+            gc_camd1.gc_img.cf_img_HB = 0x050;
+        }
+        
     }
-
+    
+  
 
     // WIDTH *(A + Q) + REG06(A + Q)  +4  = 1/FPS
     // A = cf_img_width    Q =  cf_img_VB  = reg05
     gc_camd1.gc_img.cf_img_VB = (CAMD1_SYS_CLKIN/gc_camd1.gc_cam.cf_cam_FPS - 4)/(gc_camd1.gc_img.cf_img_width + gc_camd1.gc_img.cf_img_HB) - gc_camd1.gc_img.cf_img_height;
 
     std::cout << "cf_img_VB_old: " << gc_camd1.gc_img.cf_img_VB <<std::endl;
+    
     if(gc_camd1.gc_img.cf_img_VB < 0x2D)
         gc_camd1.gc_img.cf_img_VB = 0x2D;
+
 
     std::cout << "cf_img_HB: " << gc_camd1.gc_img.cf_img_HB <<std::endl;
     std::cout << "cf_img_VB: " << gc_camd1.gc_img.cf_img_VB <<std::endl;

@@ -144,6 +144,8 @@ static int ce_cam_set_af_mode(int camlr)
 
 static int ce_cam_sync_rst(int camlr)
 {
+    
+    
     if(CAMD1_LEFT == camlr)
         ce_cam_rst_flag_left = true;
     else if(CAMD1_RIGHT == camlr)
@@ -154,9 +156,12 @@ static int ce_cam_sync_rst(int camlr)
         return ERROR;
     }
 
-    while( (!ce_cam_rst_flag_left)||(!ce_cam_rst_flag_right));
     
-
+    if(ce_config_get_cf_cam_mode() & CAMD1_LEFT_ENABLE & CAMD1_RIGHT_ENABLE)
+    {
+        while( (!ce_cam_rst_flag_left)||(!ce_cam_rst_flag_right));
+    }
+    
     usleep(100000);
     
     ce_cam_i2c_write(camlr,0x0C,0x0001);
@@ -599,33 +604,60 @@ static void* ce_cam_showimg(void *)
                 continue;
         }
 
+        if(ce_config_get_cf_cam_mode() & CAMD1_LEFT_ENABLE & CAMD1_RIGHT_ENABLE)
+        {
+            memcpy(img_left.data, img_lr_pkg->left_img->data, ce_config_get_cf_img_size());
+            //cv::imshow("left",img_left);
+            std::cout << "left tamps:" << std::setprecision(15) << img_lr_pkg->left_img->timestamp << std::endl;
+            
+            memcpy(img_right.data,img_lr_pkg->right_img->data,ce_config_get_cf_img_size());
+            //cv::imshow("right",img_right);
+            std::cout << "right tamps:" << std::setprecision(15) << img_lr_pkg->right_img->timestamp << std::endl;
+            
+            cv::Mat result(img_left.rows, 
+                        img_left.cols + img_right.cols, 
+                        img_left.type());
 
-        memcpy(img_left.data, img_lr_pkg->left_img->data, ce_config_get_cf_img_size());
-        //cv::imshow("left",img_left);
-        std::cout << "left tamps:" << std::setprecision(15) << img_lr_pkg->left_img->timestamp << std::endl;
+            img_left.colRange( 0, img_left.cols).copyTo(result.colRange(0, img_left.cols));
 
-        memcpy(img_right.data,img_lr_pkg->right_img->data,ce_config_get_cf_img_size());
-        //cv::imshow("right",img_right);
-        std::cout << "right tamps:" << std::setprecision(15) << img_lr_pkg->right_img->timestamp << std::endl;
-        
-        
-        
-        cv::Mat result(img_left.rows, 
-                   img_left.cols + img_right.cols, 
-                   img_left.type());
- 
-        
+            img_right.colRange( 0, img_right.cols).copyTo(result.colRange(img_left.cols, result.cols));
+            cv::imshow("result",result);
+            
+            cv::waitKey(1);
 
-        img_left.colRange( 0, img_left.cols).copyTo(result.colRange(0, img_left.cols));
- 
-        img_right.colRange( 0, img_right.cols).copyTo(result.colRange(img_left.cols, result.cols));
-        cv::imshow("result",result);
-        
-        cv::waitKey(1);
+            delete img_lr_pkg->left_img;
+            delete img_lr_pkg->right_img;
+            delete img_lr_pkg;
+        }
+        else if (ce_config_get_cf_cam_mode() & CAMD1_LEFT_ENABLE )
+        {
+            memcpy(img_left.data, img_lr_pkg->left_img->data, ce_config_get_cf_img_size());
+            //cv::imshow("left",img_left);
+            std::cout << "left tamps:" << std::setprecision(15) << img_lr_pkg->left_img->timestamp << std::endl;
+            
+            
+    
+            cv::imshow("img_left",img_left);
+            
+            cv::waitKey(1);
 
-        delete img_lr_pkg->left_img;
-        delete img_lr_pkg->right_img;
-        delete img_lr_pkg;
+            delete img_lr_pkg->left_img;
+            delete img_lr_pkg;
+        }
+        else if(ce_config_get_cf_cam_mode() & CAMD1_RIGHT_ENABLE)
+        {
+            memcpy(img_right.data,img_lr_pkg->right_img->data,ce_config_get_cf_img_size());
+            //cv::imshow("right",img_right);
+            std::cout << "right tamps:" << std::setprecision(15) << img_lr_pkg->right_img->timestamp << std::endl;
+
+            cv::imshow("img_right",img_right);
+            
+            cv::waitKey(1);
+
+            delete img_lr_pkg->right_img;
+            delete img_lr_pkg;
+        }
+       
     }
     
     ce_cam_showimg_thread = 0;
@@ -700,10 +732,15 @@ static void* ce_cam_preprocess(void *)
     fs["Q"] >> Q;
     
     
+    
+    
     cv::fisheye::initUndistortRectifyMap(M1, D1, R1, P1, img_left.size(), CV_16SC2, l_remapx, l_remapy);
+
     cv::fisheye::initUndistortRectifyMap(M2, D2, R2, P2, img_right.size(), CV_16SC2, r_remapx, r_remapy);
+
+
     
-    
+
     img_pkg timg_pkg;
 
     img_pkg *l_img_pkg = NULL;
@@ -712,60 +749,104 @@ static void* ce_cam_preprocess(void *)
     
     while(!ce_cam_preprocess_stop_run)
     {
-        if((!img_pkg_left_list.empty()) && (!img_pkg_right_list.empty()))
+        if(ce_config_get_cf_cam_mode() & CAMD1_LEFT_ENABLE & CAMD1_RIGHT_ENABLE)
         {
-            img_pkg_left_list.try_front(l_img_pkg);
-            img_pkg_right_list.try_front(r_img_pkg);
-
-            double diff_tamps = fabs(l_img_pkg->timestamp - r_img_pkg->timestamp);
-            
-            if( diff_tamps > 0.005 ) 
+            if((!img_pkg_left_list.empty()) && (!img_pkg_right_list.empty()))
             {
-                std::cout << "celog: something error the image is no sync!\r\n" << std::endl;
-                if(l_img_pkg->timestamp < r_img_pkg->timestamp )  // give up the early data
+                img_pkg_left_list.try_front(l_img_pkg);
+                img_pkg_right_list.try_front(r_img_pkg);
+
+                double diff_tamps = fabs(l_img_pkg->timestamp - r_img_pkg->timestamp);
+                
+                if( diff_tamps > 0.005 ) 
                 {
-                    img_pkg_left_list.try_pop(l_img_pkg);
-                    delete l_img_pkg;
-                    l_img_pkg = NULL;
+                    std::cout << "celog: something error the image is no sync!\r\n" << std::endl;
+                    if(l_img_pkg->timestamp < r_img_pkg->timestamp )  // give up the early data
+                    {
+                        img_pkg_left_list.try_pop(l_img_pkg);
+                        delete l_img_pkg;
+                        l_img_pkg = NULL;
+                    }
+                    else
+                    {
+                        img_pkg_right_list.try_pop(r_img_pkg);
+                        delete r_img_pkg;
+                        r_img_pkg = NULL;
+                    }
                 }
                 else
                 {
+                    img_pkg_left_list.try_pop(l_img_pkg);
                     img_pkg_right_list.try_pop(r_img_pkg);
-                    delete r_img_pkg;
-                    r_img_pkg = NULL;
+
+                    d1_img_output_pkg *t_output_pkg = new d1_img_output_pkg;
+                    if (NULL == t_output_pkg)
+                    {
+                        LOG("celog: ce_cam_showimg alloc memory failure!\r\n");
+                        delete l_img_pkg;
+                        delete r_img_pkg;
+                        continue;
+                    }
+
+                    t_output_pkg->left_img = l_img_pkg;
+                    t_output_pkg->right_img = r_img_pkg;
+
+                    t_output_pkg->left_img->timestamp = l_img_pkg->timestamp;      // merger the timestamp to left
+                    t_output_pkg->right_img->timestamp = l_img_pkg->timestamp;
+
+
+                    if(ce_config_get_cf_cam_rectify())
+                    {
+                        memcpy(img_left.data, t_output_pkg->left_img->data, ce_config_get_cf_img_size());
+                        memcpy(img_right.data,t_output_pkg->right_img->data,ce_config_get_cf_img_size());
+            
+                        remap(img_left, img_left_remap, l_remapx, l_remapy, cv::INTER_LINEAR);
+                        remap(img_right, img_right_remap, r_remapx, r_remapy, cv::INTER_LINEAR);
+                        
+                        memcpy(t_output_pkg->left_img->data, img_left_remap.data, ce_config_get_cf_img_size());
+                        memcpy(t_output_pkg->right_img->data, img_right_remap.data, ce_config_get_cf_img_size());
+                    }
+                    
+                    d1_img_output_pkg *t_pkg_giveup = NULL;
+
+                    img_pkg_list_d1.push(t_output_pkg, t_pkg_giveup, 30);
+                    if (NULL != t_pkg_giveup)
+                    {
+                        delete t_pkg_giveup->left_img;
+                        delete t_pkg_giveup->right_img;
+                        delete t_pkg_giveup;
+                    }
                 }
-            }
-            else
+
+            }   
+        }
+        else if(ce_config_get_cf_cam_mode() & CAMD1_LEFT_ENABLE)
+        {
+            if(!img_pkg_left_list.empty())
             {
+                img_pkg_left_list.try_front(l_img_pkg);
+
                 img_pkg_left_list.try_pop(l_img_pkg);
-                img_pkg_right_list.try_pop(r_img_pkg);
 
                 d1_img_output_pkg *t_output_pkg = new d1_img_output_pkg;
                 if (NULL == t_output_pkg)
                 {
                     LOG("celog: ce_cam_showimg alloc memory failure!\r\n");
                     delete l_img_pkg;
-                    delete r_img_pkg;
                     continue;
                 }
 
                 t_output_pkg->left_img = l_img_pkg;
-                t_output_pkg->right_img = r_img_pkg;
-
                 t_output_pkg->left_img->timestamp = l_img_pkg->timestamp;      // merger the timestamp to left
-                t_output_pkg->right_img->timestamp = l_img_pkg->timestamp;
-
 
                 if(ce_config_get_cf_cam_rectify())
                 {
                     memcpy(img_left.data, t_output_pkg->left_img->data, ce_config_get_cf_img_size());
-                    memcpy(img_right.data,t_output_pkg->right_img->data,ce_config_get_cf_img_size());
-        
+
                     remap(img_left, img_left_remap, l_remapx, l_remapy, cv::INTER_LINEAR);
-                    remap(img_right, img_right_remap, r_remapx, r_remapy, cv::INTER_LINEAR);
-                    
+
                     memcpy(t_output_pkg->left_img->data, img_left_remap.data, ce_config_get_cf_img_size());
-                    memcpy(t_output_pkg->right_img->data, img_right_remap.data, ce_config_get_cf_img_size());
+
                 }
                 
                 d1_img_output_pkg *t_pkg_giveup = NULL;
@@ -774,12 +855,55 @@ static void* ce_cam_preprocess(void *)
                 if (NULL != t_pkg_giveup)
                 {
                     delete t_pkg_giveup->left_img;
+                    delete t_pkg_giveup;
+                }
+            }  
+            
+        }
+        else if(ce_config_get_cf_cam_mode() & CAMD1_RIGHT_ENABLE)
+        {
+            if(!img_pkg_right_list.empty())
+            {
+                img_pkg_right_list.try_front(r_img_pkg);
+
+                img_pkg_right_list.try_pop(r_img_pkg);
+
+                d1_img_output_pkg *t_output_pkg = new d1_img_output_pkg;
+                if (NULL == t_output_pkg)
+                {
+                    LOG("celog: ce_cam_showimg alloc memory failure!\r\n");
+                    delete r_img_pkg;
+                    continue;
+                }
+
+                t_output_pkg->right_img = r_img_pkg;
+                t_output_pkg->right_img->timestamp = r_img_pkg->timestamp;      // merger the timestamp to left
+
+                if(ce_config_get_cf_cam_rectify())
+                {
+                    memcpy(img_right.data, t_output_pkg->right_img->data, ce_config_get_cf_img_size());
+
+                    remap(img_right, img_right_remap, r_remapx, r_remapy, cv::INTER_LINEAR);
+
+                    memcpy(t_output_pkg->right_img->data, img_right_remap.data, ce_config_get_cf_img_size());
+
+                }
+                    
+                d1_img_output_pkg *t_pkg_giveup = NULL;
+
+                img_pkg_list_d1.push(t_output_pkg, t_pkg_giveup, 30);
+                if (NULL != t_pkg_giveup)
+                {
                     delete t_pkg_giveup->right_img;
                     delete t_pkg_giveup;
                 }
             }
 
-        }
+        }  
+            
+        
+        
+       
         usleep(1000);
     }
     pthread_exit(NULL);

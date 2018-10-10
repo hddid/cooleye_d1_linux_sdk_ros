@@ -39,11 +39,11 @@ cf_imu_icm20689_sample_rate=1000;
 ####
 ####
 #mode : left=1;right =2;streoe =3;
-cf_cam_mode=3;
+cf_cam_mode=1;
 #VGA = 1  WVGA = 2
 cf_cam_resolution=2;
 # FPS: 1~45 is option.
-cf_cam_FPS=30;
+cf_cam_FPS=60;
 ##EG_MODE
 #  0 :  Manual mode
 #  1 : AEC/AGC mode
